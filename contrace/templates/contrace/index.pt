@@ -1,0 +1,5 @@
+<html metal:use-macro="main_template.macros.master">
+    <body metal:fill-slot="main">
+        <h1>${message}</h1>
+    </body>
+</html>

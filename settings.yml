@@ -1,0 +1,21 @@
+server:
+  listen_host: 127.0.0.1
+  listen_port: 5000
+  server_url: http://localhost:5000
+
+configuration:
+  morpfw.scan:
+    - contrace
+  morpfw.authn.policy: morpcc.app:AuthnPolicy
+  morpfw.storage.sqlstorage.dburi: 'postgresql://postgres:postgres@localhost:5432/contrace'
+  morpfw.storage.sqlstorage.dburi.warehouse: 'postgresql://postgres:postgres@localhost:5432/contrace_warehouse'
+  morpfw.secret.fernet_key: brJX-7VFJWHHiMDqDEnkv5z9tlopFQUo7RPDdsqQHhI=
+  morpcc.beaker.session.type: ext:database
+  morpcc.beaker.session.url: 'postgresql://postgres:postgres@localhost:5432/contrace_cache'
+
+application:
+  title: contrace
+  class: contrace.app:App
+  factory: morpcc.app:create_morpcc_app
+  fsblobstorage_path: '%(here)s/blobstorage'
+  development_mode: true 

@@ -1,0 +1,123 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Project",
+            "type": "shell",
+            "command": "./build.sh",
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Generate migrations",
+            "type": "shell",
+            "command": "./bin/alembic revision --autogenerate -m ${input:message}",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "clear": false
+            },
+            "options": {
+                "cwd": "${workspaceRoot}"
+            },
+            "problemMatcher": null
+
+        },
+        {
+            "label": "Reset Database",
+            "type": "shell",
+            "command": "./bin/morpfw -s ./settings.yml resetdb",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "clear": false
+            },
+            "options": {
+                "cwd": "${workspaceRoot}"
+            },
+            "problemMatcher": null
+        },
+        {
+            "label": "Start Application",
+            "type": "shell",
+            "command": "./bin/morpfw -s settings.yml start",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "clear": false
+            },
+            "options": {
+                "cwd": "${workspaceRoot}"
+            },
+            "problemMatcher": null,
+        },
+        {
+            "label": "Test Current Project",
+            "type": "shell",
+            "command": "./bin/pytest --cov-report html --cov=morpfw --annotate-output=annotations.json --html=report.html --self-contained-html -s .",
+            "group": "test",
+            "options": {
+                "env": {
+                    "ELASTICSEARCH_EXECUTABLE": "${workspaceRoot}/parts/elasticsearch/bin/elasticsearch"
+                }
+            }
+        },
+        {
+            "label": "Test Current File",
+            "type": "shell",
+            "command": "./bin/pytest -s ${relativeFile}",
+            "group": "test",
+            "options": {
+                "env": {
+                    "ELASTICSEARCH_EXECUTABLE": "${workspaceRoot}/parts/elasticsearch/bin/elasticsearch"
+                }
+            }
+        },
+        {
+            "label": "Update Database",
+            "type": "shell",
+            "command": "./bin/alembic upgrade head",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "clear": false
+            },
+            "options": {
+                "cwd": "${workspaceRoot}"
+            },
+            "problemMatcher": null
+        },
+        {
+            "label": "MorpCC: Create default admin user (admin:admin)",
+            "type": "shell",
+            "command": "./bin/morpfw -s ./settings.yml register-admin -u admin -e admin@localhost.local -p admin",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "clear": false
+            },
+            "options": {
+                "cwd": "${workspaceRoot}"
+            },
+            "problemMatcher": null
+        }
+    ],
+    "inputs": [
+        {"id":"message",
+            "type": "promptString",
+            "description" : "Revision message",
+            "default": "update"}
+    ]
+}
