@@ -3,10 +3,19 @@ Building
 
 Install Visual Studio code and load this project.
 
-Press ctrl+alt+b to run the build task
+On VSCode command prompt run following:
+
+* Run Task > Build Project
+
 
 Initializing Database
 ======================
+
+You will need following databases created on your local PostgreSQL:
+
+* contrace
+* contrace_warehouse
+* contrace_cache
 
 On VSCode command prompt run following sequence:
 
