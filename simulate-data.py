@@ -1,6 +1,7 @@
 import random
 import time
 import os
+import json
 
 WORLD = {
     'width': 30,
@@ -9,6 +10,15 @@ WORLD = {
 
 POPULATION = 40
 CYCLES = 100
+CELLSIZE = 5
+
+def tower_log(payload, filename='tower_log.txt'):
+    with open(filename,'a') as f:
+        f.write(json.dumps(payload) + '\n')
+
+def infect_log(payload, filename='infect_log.txt'):
+    with open(filename,'a') as f:
+        f.write(json.dumps(payload) + '\n')
 
 class Area(object):
 
@@ -25,22 +35,66 @@ class Area(object):
             return True
         return False
 
+    def find_people(self, world):
+        for person in world.people:
+            if self.contains(person.x, person.y):
+                yield person
+
+class CellTower(Area):
+    
+    def __init__(self, cellid, *args, **kwargs):
+        self.id = cellid
+        super().__init__(*args, **kwargs)
+        self.people = []
+
+    def handle_notification(self, person):
+        incell = self.contains(person.x, person.y)
+        if incell and person in self.people:
+            return
+
+        if incell and person not in self.people:
+            self.people.append(person)
+            tower_log({'timestamp': int(time.time()), 'cell_id': self.id, 'event':
+                'Enter Cell', 'person_id': person.id})
+
+        if not incell and person in self.people:
+            self.people.remove(person)
+            tower_log({'timestamp': int(time.time()), 'cell_id': self.id, 'event':
+                'Leave Cell', 'person_id': person.id})
+
+
+
+
+
 class World(object):
 
     def __init__(self, width=WORLD['width'], height=WORLD['height']):
         self.width = width
         self.height = height
         self.people = []
+        self.towers = []
+        cidx = 65
+        for x in range(0, width, CELLSIZE):
+            cidy = 0
+            for y in range(0, height, CELLSIZE):
+                cell_id = '{}{}'.format(chr(cidx),cidy)
+                tower = CellTower(cell_id, x, y, x+10, y+10)
+                cidy += 1
+                self.towers.append(tower)
+            cidx += 1
 
     def add_person(self, person):
+        person.world = self
         self.people.append(person)
+        self.notify_tower(person)
 
     def find_people_in_area(self, x1, y1, x2, y2):
         area = Area(x1, y1, x2, y2)
-        for person in self.people:
-            if Area.contains(person.x, person.y):
-                yield person
+        return area.find_people(self)
 
+    def notify_tower(self, person):
+        for tower in self.towers:
+            tower.handle_notification(person)
            
     def tick(self):
         for person in self.people:
@@ -103,7 +157,9 @@ class World(object):
         
 class Person(object):
 
-    def __init__(self):
+    def __init__(self, personid):
+        self.id = personid
+        self.world = None
         self.x = random.randint(0, WORLD['width'])
         self.y = random.randint(0, WORLD['height'])
         self.infected = False
@@ -131,6 +187,7 @@ class Person(object):
     def tick(self):
         self.x += self.vector['x']
         self.y += self.vector['y']
+        self.world.notify_tower(self)
         self.update_vector()
 
     def infect(self, world):
@@ -140,13 +197,16 @@ class Person(object):
         for person in world.people:
             if (((self.x - 1) <= person.x) and ((self.y - 1) <= person.y) and 
                     (person.x <= (self.x + 1)) and (person.y <= (self.y + 1))):
-                person.infected = True
+                if not person.infected:
+                    person.infected = True
+                    infect_log({'timestamp': int(time.time()), 'source_person':
+                        self.id, 'person': person.id})
 
 
 def main():
     world = World()
     for p in range(POPULATION):
-        person = Person()
+        person = Person(p)
         if p == 1:
             person.infected=True
         world.add_person(person)
