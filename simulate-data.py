@@ -4,6 +4,7 @@ import os
 import json
 import sys
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 from matplotlib.animation import FuncAnimation
 from matplotlib.animation import writers
 
@@ -12,13 +13,15 @@ WORLD = {
     'height': 100
 }
 
-POPULATION = 2500
+POPULATION = 2000
 CELLSIZE = 10
 INFECT_RADIUS = 1
+INFECT_PROBABILITY = 0.05
+DAY_SIZE = 5
 
 TOWER_LOG = []
 INFECT_LOG = []
-CYCLES=10000
+
 
 def tower_log(payload):
     TOWER_LOG.append(payload)
@@ -100,6 +103,8 @@ class World(object):
         self.towers = []
         self.time = 0
         self.infected_count = 1
+        self.infect_history = []
+        self.infect_rate_history = []
         cidx = 0
         for x in range(0, width, CELLSIZE):
             cidy = 0
@@ -126,13 +131,56 @@ class World(object):
             tower.handle_notification(person)
            
     def tick(self):
+
         for person in self.people:
             if person in self.index[(person.x, person.y)]:
                 self.index[(person.x, person.y)].remove(person)
             person.tick()
             if person not in self.index[(person.x, person.y)]:
                 self.index[person.x,person.y].append(person)
+
         self.time += 1
+
+        day = int(self.time / DAY_SIZE)
+
+        if self.time % DAY_SIZE == 0:
+
+            ic_before = 0
+            if self.infect_history:
+                ic_before = self.infect_history[-1]['count']
+            self.infect_rate_history.append({
+                'time': day,
+                'change': self.infected_count - ic_before
+            })
+
+            self.infect_history.append({
+                'time': day,
+                'count': self.infected_count
+            })
+
+    def rate_vectors(self):
+        time_x = [i['time'] for i in self.infect_rate_history]
+        infected_y = [i['change'] for i in self.infect_rate_history]
+
+        return {
+            'infected': {
+                'x': time_x,
+                'height': infected_y,
+                'color': 'r'
+            }
+        }
+
+    def cumulative_vectors(self):
+        time_x = [i['time'] for i in self.infect_history]
+        infected_y = [i['count'] for i in self.infect_history]
+
+        return {
+            'infected': {
+                'x': time_x,
+                'y1': infected_y,
+                'color': 'r'
+            }
+        }
 
     def scatter_vectors(self):
         clean_x = []
@@ -172,12 +220,20 @@ class Person(object):
         self.infected = False
         self.vector = {'x':random.randint(-1,1), 'y': random.randint(-1,1)}
         self.steps = 0
+        self.move_distance = random.randint(3,10)
         self.update_vector()
 
     def update_vector(self):
-        
-        self.vector['x'] = random.randint(-1,1)
-        self.vector['y'] = random.randint(-1,1)
+        if self.steps >= self.move_distance:
+            self.vector['x'] = random.randint(-1,1)
+            self.vector['y'] = random.randint(-1,1)
+
+            # must always be moving
+            if self.vector['x'] == 0 and self.vector['y'] == 0:
+                return self.update_vector()
+
+            self.steps = 0
+            self.move_distance = random.randint(3,10)
 
         nextx = self.x + self.vector['x']
         nexty = self.y + self.vector['y']
@@ -193,11 +249,6 @@ class Person(object):
         elif nexty >= WORLD['width']:
             self.vector['y'] = random.randint(-1,0)
 
-        # must always be moving
-        if self.vector['x'] == 0 and self.vector['y'] == 0:
-            self.update_vector()            
-
-
 
 
 
@@ -205,7 +256,7 @@ class Person(object):
         self.infect(self.world)
         self.x += self.vector['x']
         self.y += self.vector['y']
-
+        self.steps += 1
 
         self.world.notify_tower(self)
         self.update_vector()
@@ -219,6 +270,8 @@ class Person(object):
                 people = world.index.get((x,y), [])
 
                 for person in people:
+                    if random.randint(0,100) >= (100*INFECT_PROBABILITY):
+                        continue
 
                     if not person.infected:
                         person.infected = True
@@ -231,11 +284,25 @@ class ScatterAnimation(object):
     def __init__(self, world):
         self.fig = plt.figure()
         self.world = world
-        self.ax = self.fig.add_axes([0, 0, 1, 1], frameon=False)
+        self.ax = self.fig.add_subplot(2,2,1)
+        self.ax2 = self.fig.add_subplot(2,2,2)
+        self.ax3 = self.fig.add_subplot(2,1,2)
+
+        for tower in world.towers:
+            patch = patches.Rectangle(
+                    (tower.topleft['x'], tower.topleft['y']),
+                    CELLSIZE, CELLSIZE,
+                    linewidth=1,edgecolor='black', fill=False)
+            self.ax.add_patch(patch)
+
+
         sv = world.scatter_vectors()
         self.scats = []
+        self.cumulative_plots = []
+        self.rate_plots = []
         for v in sv.values():
             self.scats.append(self.ax.scatter(**v))
+
         self.anim = FuncAnimation(self.fig, self.update, interval=100)
         
     def update(self, frame):
@@ -251,12 +318,28 @@ class ScatterAnimation(object):
         for scat in self.scats:
             scat.remove()
 
+        for p in self.cumulative_plots:
+            p.remove()
+
+        for p in self.rate_plots:
+            p.remove()
+
+        self.cumulative_plots = []
         self.scats = []
+        self.rate_plots = []
 
         sv = self.world.scatter_vectors()
         for v in sv.values():
             if v['x']:
                 self.scats.append(self.ax.scatter(**v))
+
+        cv = self.world.cumulative_vectors()
+        for v in cv.values():
+            self.cumulative_plots.append(self.ax2.fill_between(**v))
+
+        rv = self.world.rate_vectors()
+        for v in rv.values():
+            self.rate_plots.append(self.ax3.bar(**v))
 
         with open('tower_log.txt','a') as f:
             f.writelines([(json.dumps(l) + '\n') for l in TOWER_LOG])
